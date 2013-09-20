@@ -24,6 +24,7 @@ import pkg_resources
 __version__ = pkg_resources.require('next-review')[0].version
 
 
+BOTS = frozenset(['jenkins', 'smokestack'])
 DEFAULT_GERRIT_HOST = 'review.openstack.org'
 DEFAULT_GERRIT_PORT = 29418
 
@@ -112,6 +113,17 @@ def require_jenkins_upvote(reviews):
     return filtered_reviews
 
 
+def require_plus_x(reviews, threshold):
+    filtered_reviews = []
+    for review in reviews:
+        votes = votes_by_name(review)
+        for reviewer, vote in votes.iteritems():
+            if reviewer not in BOTS and vote >= threshold:
+                filtered_reviews.append(review)
+                break
+    return filtered_reviews
+
+
 def ignore_all_downvotes(reviews):
     filtered_reviews = []
     for review in reviews:
@@ -177,6 +189,10 @@ def main(args):
     reviews = ignore_smokestack_downvotes(reviews)
     if args.nodownvotes:
         reviews = ignore_all_downvotes(reviews)
+    if args.onlyplustwo:
+        reviews = require_plus_x(reviews, 2)
+    elif args.onlyplusone:
+        reviews = require_plus_x(reviews, 1)
     reviews = ignore_my_reviews(
         reviews, username=args.username, email=args.email)
     reviews = ignore_previously_reviewed(
@@ -228,6 +244,12 @@ def cli():
     parser.add_argument(
         '-n', '--nodownvotes', action='store_true',
         help='Ignore reviews that have a downvote from anyone')
+    parser.add_argument(
+        '-1', '--onlyplusone', action='store_true',
+        help='Only show reviews that have an upvote from a human')
+    parser.add_argument(
+        '-2', '--onlyplustwo', action='store_true',
+        help='Only show reviews that have a +2 from a human')
     parser.add_argument(
         'projects', metavar='project', nargs='*', default=['is:watched'],
         help='Projects to include when checking reviews')
